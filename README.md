@@ -1,56 +1,180 @@
 # Change Point Detection in Semantic Text Streams
 
-> A computational statistics project that adapts classical change point detection (CPD) to **textual data** using sentence embeddings, with an interactive Streamlit demo.
+A Computational Statistics project that adapts classical Change Point Detection (CPD) techniques to textual data using transformer-based sentence embeddings and semantic similarity analysis.
 
 ---
 
 ## Overview
 
-Where does the **topic shift** in a document? This project answers that question by:
+Identifying where a document changes topic is a common challenge in text analytics, document segmentation, and information retrieval. This project investigates whether traditional change point detection methods can be applied to semantic text representations.
 
-1. Embedding each paragraph into a 384-dimensional semantic space using `all-MiniLM-L6-v2` (Sentence-BERT, Reimers & Gurevych 2019).
-2. Computing a 1-D dissimilarity signal: `d_i = 1 − cos(e_i, e_{i+1})`.
-3. Detecting topic boundaries on that signal using three competing estimators — a **moment-based threshold**, **peak detection**, and **PELT** (Pruned Exact Linear Time, Killick et al. 2012).
-4. Benchmarking the three on a controlled multi-topic corpus using precision, recall, F1, and Mean Detection Error.
-5. Wrapping the pipeline in a **Streamlit web app** for interactive use.
+The workflow consists of:
+
+1. Converting each paragraph into a dense semantic embedding using the MiniLM Sentence-BERT model.
+2. Measuring semantic distance between consecutive paragraphs using cosine distance.
+3. Constructing a one-dimensional change signal from those distances.
+4. Detecting topic boundaries using multiple change point detection techniques.
+5. Evaluating detection performance on a controlled multi-topic corpus.
+
+An interactive Streamlit application allows users to upload text and visualize detected topic transitions in real time.
 
 ---
 
-## Key Finding
+## Key Insight
 
-PELT, the textbook "best" change point method, **under-segments** this signal — not from a bug but from a **signal–cost mismatch**: PELT's kernel cost is designed for *sustained* distributional shifts, but paragraph-level topic boundaries appear as **single-index spikes** that immediately return to baseline. Simple peak detection, calibrated against the empirical between-topic versus within-topic distance separation under MiniLM, outperforms it.
+The strongest result of this project is that the most sophisticated method was not the most effective.
 
-> *The right detector depends on the shape of the change in the signal, not on the sophistication of the method.*
+PELT (Pruned Exact Linear Time), a widely used state-of-the-art change point detection algorithm, consistently under-segmented the semantic distance signal. The reason was not implementation error but a mismatch between the signal structure and the assumptions of the method.
+
+Topic transitions in text typically appear as isolated spikes in semantic distance that immediately return to baseline. PELT is designed to detect sustained distributional shifts across longer segments and therefore tends to ignore these short-lived changes.
+
+> **Takeaway:** The effectiveness of a change point detector depends on the characteristics of the signal, not solely on algorithmic complexity.
+
+---
+
+## Methodology
+
+```text
+Raw Text
+   │
+   ▼
+Paragraph Segmentation
+   │
+   ▼
+MiniLM Embeddings (384 dimensions)
+   │
+   ▼
+Cosine Distance Signal
+   │
+   ▼
+Change Point Detection
+   ├── Threshold Detection
+   ├── Peak Detection
+   └── PELT
+   │
+   ▼
+Performance Evaluation
+````
+
+### Step 1: Text Segmentation
+
+Input documents are divided into paragraphs, with each paragraph treated as an individual semantic unit.
+
+### Step 2: Semantic Embeddings
+
+Each paragraph is embedded into a 384-dimensional vector space using the `all-MiniLM-L6-v2` Sentence-BERT model.
+
+### Step 3: Semantic Distance Signal
+
+For every pair of consecutive paragraphs, cosine distance is computed:
+
+```text
+Distance(i) = 1 - CosineSimilarity(Paragraph_i, Paragraph_(i+1))
+```
+
+This produces a one-dimensional signal where larger values indicate stronger semantic shifts.
+
+### Step 4: Change Point Detection
+
+Three competing methods are applied:
+
+#### 1. Threshold-Based Detection
+
+A paragraph boundary is flagged when the semantic distance exceeds:
+
+```text
+Threshold = Mean + Standard Deviation
+```
+
+#### 2. Peak Detection
+
+Local maxima in the distance signal are identified using SciPy's peak-finding algorithm and filtered using an empirically calibrated distance threshold.
+
+#### 3. PELT
+
+The PELT algorithm from the `ruptures` library is applied using an RBF kernel cost function to identify statistically significant segmentation points.
+
+### Step 5: Evaluation
+
+Performance is measured using:
+
+* Precision
+* Recall
+* F1 Score
+* Mean Detection Error (MDE)
+
+---
+
+## Statistical Assumption
+
+Within a topic segment, semantic distances are assumed to be relatively stable. Topic boundaries introduce abrupt changes in the distribution of distances, resulting in detectable peaks within the signal.
+
+---
+
+## Results
+
+### Controlled Multi-Topic Corpus
+
+| Method              | Precision | Recall | F1 Score | Mean Detection Error |
+| ------------------- | --------- | ------ | -------- | -------------------- |
+| Peak Detection      | 1.00      | 1.00   | 1.00     | 0.00                 |
+| Threshold Detection | 1.00      | 1.00   | 1.00     | 0.00                 |
+| PELT (RBF Kernel)   | 0.00      | 0.00   | 0.00     | > 2.00               |
+
+### Interpretation
+
+Peak Detection and Threshold Detection successfully captured all topic boundaries in the benchmark corpus.
+
+PELT failed because topic transitions produced isolated spikes rather than sustained regime changes, violating the assumptions underlying its cost function.
 
 ---
 
 ## Quick Start
 
-### Run the notebook
+### Clone the Repository
+
 ```bash
-git clone https://github.com/<your-username>/change-point-detection.git
+git clone https://github.com/NishuSingh28/change-point-detection.git
 cd change-point-detection
+```
+
+### Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
+
+### Run the Analysis Notebook
+
+```bash
 jupyter notebook computational_statistics.ipynb
 ```
 
-### Run the interactive Streamlit app
+### Launch the Streamlit Application
+
 ```bash
 streamlit run app.py
 ```
-Then open <http://localhost:8501> in your browser, paste text (or upload a `.txt` from `sample_inputs/`), and click **Run Detection**. Adjust the **sensitivity slider** in the sidebar to dial how many boundaries are surfaced.
+
+Open:
+
+```text
+http://localhost:8501
+```
+
+in your browser.
 
 ---
 
 ## Repository Structure
 
-```
+```text
 change-point-detection/
-├── README.md                         <- this file
-├── requirements.txt                  <- pinned dependencies
-├── app.py                            <- Streamlit demo app
-├── computational_statistics.ipynb    <- full analysis notebook
-├── sample_inputs/                    <- test texts that exercise edge cases
+├── README.md
+├── requirements.txt
+├── app.py
+├── computational_statistics.ipynb
+├── sample_inputs/
 │   ├── 01_three_topics.txt
 │   ├── 02_two_topics.txt
 │   ├── 03_five_topics.txt
@@ -58,102 +182,77 @@ change-point-detection/
 │   ├── 05_uniform_single_topic.txt
 │   ├── 06_too_short.txt
 │   └── 07_duplicate_paragraphs.txt
-├── screenshots/                      <- add demo screenshots here
 └── LICENSE
 ```
 
 ---
 
-## Methodology
+## Technology Stack
 
-```
-Raw text
-   │
-   ▼
-[1] Segment into paragraphs
-   │
-   ▼
-[2] Embed each segment           e_i ∈ ℝ^384   (MiniLM-L6-v2)
-   │
-   ▼
-[3] Dissimilarity signal         d_i = 1 − cos(e_i, e_{i+1})
-   │
-   ▼
-[4] Detect change points         {τ_1, …, τ_K}
-   │   ├── Threshold (μ + σ)        — moment-based baseline
-   │   ├── Peak detection           — primary method (absolute floor)
-   │   └── PELT (RBF kernel)        — comparative state-of-the-art
-   │
-   ▼
-[5] Evaluate                     Precision, Recall, F1, MDE
-```
+### NLP & Embeddings
 
-### Statistical assumption
+* Sentence Transformers
+* all-MiniLM-L6-v2
 
-Within a topic the distance signal is locally stationary; at a boundary both mean and variance shift:
+### Change Point Detection
 
-> *d_i ~ N(μ_k, σ²_k) for i in segment k*
+* ruptures
+* scipy.signal.find_peaks
 
-### PELT objective
+### Data Processing
 
-> minimize over τ_{1:K} of Σ C(d_{τ_k:τ_{k+1}}) + β·K
->
-> where C is a per-segment cost (RBF kernel here) and β is a complexity penalty.
+* NumPy
+* Pandas
+* Scikit-learn
 
-### Peak-detection calibration
+### Visualization
 
-The sensitivity slider in the app maps to an **absolute** cosine-distance floor in [0.75, 0.95]. The floor is empirically calibrated against the observed separation under MiniLM:
-- within-topic distances ≈ 0.4 – 0.7
-- between-topic distances ≈ 0.9 – 1.0
+* Matplotlib
 
-A default floor of **0.85** sits in the gap so true between-topic peaks fire while within-topic noise is suppressed.
+### Deployment
+
+* Streamlit
 
 ---
 
-## Results — Method Comparison (controlled 9-paragraph corpus)
+## Limitations
 
-| Method                    | Precision | Recall |   F1  |  MDE  | Notes |
-|---------------------------|----------:|-------:|------:|------:|-------|
-| Peak detection (abs floor)| 1.000     | 1.000  | 1.000 | 0.00  | Best on this signal class |
-| Threshold (μ + σ)         | 1.000     | 1.000  | 1.000 | 0.00  | Strong baseline |
-| PELT (RBF kernel)         | 0.000     | 0.000  | 0.000 | 2.00+ | Under-segments single-spike boundaries |
-
-See the notebook (section 14) for full discussion of why PELT loses here and where it *would* win (longer signals, sustained regime changes).
+* Evaluation was conducted on a small curated benchmark corpus.
+* Topic transitions in real-world documents may be gradual rather than abrupt.
+* MiniLM is a general-purpose encoder and may not be optimal for domain-specific text.
+* PELT hyperparameters were selected empirically rather than through formal model selection criteria.
 
 ---
 
-## Tech Stack
+## Future Work
 
-- **Embeddings:** [`sentence-transformers`](https://www.sbert.net/) — `all-MiniLM-L6-v2`
-- **Change point detection:** [`ruptures`](https://centre-borelli.github.io/ruptures-docs/) (PELT), `scipy.signal.find_peaks`
-- **Numerics & data:** `numpy`, `scipy`, `pandas`, `scikit-learn`
-- **Visualization:** `matplotlib`
-- **Web demo:** `streamlit`
+Potential extensions include:
 
----
-
-## Limitations & Future Work
-
-- The benchmark corpus is small and curated; real-world streams (news, dialogue) have soft, gradual transitions.
-- MiniLM is general-purpose — domain-specific encoders would tighten the within/between-topic separation.
-- The PELT penalty is set empirically; future work: BIC / modified BIC selection.
-- A **hybrid detector** — peak detection to seed candidates, PELT-style windowed validation around each — would combine the strengths of both methods.
+* Bayesian Online Change Point Detection for streaming text.
+* Domain-specific embedding models.
+* Adaptive threshold estimation.
+* Hybrid methods combining peak detection with local statistical validation.
+* Evaluation on longer documents, news streams, and conversational data.
 
 ---
 
 ## References
 
-- Killick, R., Fearnhead, P., & Eckley, I. A. (2012). *Optimal Detection of Changepoints With a Linear Computational Cost.* JASA 107(500), 1590–1598.
-- Reimers, N., & Gurevych, I. (2019). *Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks.* EMNLP.
-- Truong, C., Oudre, L., & Vayatis, N. (2020). *Selective review of offline change point detection methods.* Signal Processing 167, 107299.
-- Adams, R. P., & MacKay, D. J. C. (2007). *Bayesian Online Changepoint Detection.* arXiv:0710.3742.
+1. Killick, R., Fearnhead, P., & Eckley, I. A. (2012). *Optimal Detection of Changepoints With a Linear Computational Cost.*
+2. Reimers, N., & Gurevych, I. (2019). *Sentence-BERT: Sentence Embeddings using Siamese BERT Networks.*
+3. Truong, C., Oudre, L., & Vayatis, N. (2020). *Selective Review of Offline Change Point Detection Methods.*
+4. Adams, R. P., & MacKay, D. J. C. (2007). *Bayesian Online Changepoint Detection.*
 
 ---
 
 ## Author
 
-**Himanshu Kumar** — Computational Statistics coursework project.
+**Nishu Kumari Singh**
+
+M.S. Data Science, Arizona State University
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+This project is licensed under the MIT License.
